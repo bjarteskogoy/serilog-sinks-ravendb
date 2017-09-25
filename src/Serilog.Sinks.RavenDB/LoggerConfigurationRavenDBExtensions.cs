@@ -3,6 +3,7 @@ using Raven.Client;
 using Serilog.Configuration;
 using Serilog.Events;
 using Serilog.Sinks.RavenDB;
+using Raven.Client.Documents;
 
 // Copyright 2014 Serilog Contributors
 // 

@@ -17,11 +17,11 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Raven.Client;
-using Raven.Client.Document;
+using Raven.Client.Documents;
 using Serilog.Sinks.PeriodicBatching;
 using LogEvent = Serilog.Sinks.RavenDB.Data.LogEvent;
-using Raven.Json.Linq;
 using Serilog.Events;
+using Raven.Client.Util;
 
 namespace Serilog.Sinks.RavenDB
 {
@@ -79,7 +79,7 @@ namespace Serilog.Sinks.RavenDB
         /// <summary>
         /// Construct a sink posting to the specified database. Creates a document store using the specified connection string name.
         /// </summary>
-        /// <param name="connectionStringName">Connection string name to the RavenDB database</param>
+        /// <param name="connectionString">Connection string to the RavenDB database</param>
         /// <param name="batchPostingLimit">The maximum number of events to post in a single batch.</param>
         /// <param name="period">The time to wait between checking for event batches.</param>
         /// <param name="formatProvider">Supplies culture-specific formatting information, or null.</param>
@@ -87,12 +87,15 @@ namespace Serilog.Sinks.RavenDB
         /// <param name="expiration">Optional time before a logged message will be expired assuming the expiration bundle is installed. <see cref="System.Threading.Timeout.InfiniteTimeSpan">Timeout.InfiniteTimeSpan</see> (-00:00:00.0010000) means no expiration. If this is not provided but errorExpiration is, errorExpiration will be used for non-errors too.</param>
         /// <param name="errorExpiration">Optional time before a logged error message will be expired assuming the expiration bundle is installed. <see cref="System.Threading.Timeout.InfiniteTimeSpan">Timeout.InfiniteTimeSpan</see> (-00:00:00.0010000) means no expiration. If this is not provided but expiration is, expiration will be used for errors too.</param>
         /// <param name="documentStoreFactory"></param>
-        public RavenDBSink(string connectionStringName, int batchPostingLimit, TimeSpan period, IFormatProvider formatProvider, string defaultDatabase = null, TimeSpan? expiration = null, TimeSpan? errorExpiration = null, Func<string, IDocumentStore> documentStoreFactory = null )
+        public RavenDBSink(string connectionString, int batchPostingLimit, TimeSpan period, IFormatProvider formatProvider, string defaultDatabase = null, TimeSpan? expiration = null, TimeSpan? errorExpiration = null, Func<string, IDocumentStore> documentStoreFactory = null )
             : base(batchPostingLimit, period)
         {
+            var p = ConnectionStringParser<RavenConnectionStringOptions>.FromConnectionString(connectionString);
+            p.Parse();
+
             _documentStore = documentStoreFactory != null
-                ? documentStoreFactory(connectionStringName)
-                : new DocumentStore { ConnectionStringName = connectionStringName }.Initialize();
+                ? documentStoreFactory(connectionString)
+                : new DocumentStore { Urls = p.ConnectionStringOptions.Urls.ToArray(), Database = p.ConnectionStringOptions.Database }.Initialize();
             _formatProvider = formatProvider;
             _defaultDatabase = defaultDatabase;
             _expiration = expiration;
@@ -121,18 +124,16 @@ namespace Serilog.Sinks.RavenDB
                         {
                             if (_errorExpiration != Timeout.InfiniteTimeSpan)
                             {
-                                var metaData = await session.Advanced.GetMetadataForAsync(logEventDoc);
-                                metaData[RavenExpirationDate] =
-                                    new RavenJValue(DateTime.UtcNow.Add(_errorExpiration.Value));
+                                var metaData = session.Advanced.GetMetadataFor(logEventDoc);
+                                metaData[RavenExpirationDate] = DateTime.UtcNow.Add(_errorExpiration.Value);
                             }
                         }
                         else
                         {
                             if (_expiration != Timeout.InfiniteTimeSpan)
                             {
-                                var metaData = await session.Advanced.GetMetadataForAsync(logEventDoc);
-                                metaData[RavenExpirationDate] =
-                                    new RavenJValue(DateTime.UtcNow.Add(_expiration.Value));
+                                var metaData = session.Advanced.GetMetadataFor(logEventDoc);
+                                metaData[RavenExpirationDate] = DateTime.UtcNow.Add(_expiration.Value);
                             }
                         }
                     }
