@@ -77,34 +77,6 @@ namespace Serilog.Sinks.RavenDB
         }
 
         /// <summary>
-        /// Construct a sink posting to the specified database. Creates a document store using the specified connection string name.
-        /// </summary>
-        /// <param name="connectionString">Connection string to the RavenDB database</param>
-        /// <param name="batchPostingLimit">The maximum number of events to post in a single batch.</param>
-        /// <param name="period">The time to wait between checking for event batches.</param>
-        /// <param name="formatProvider">Supplies culture-specific formatting information, or null.</param>
-        /// <param name="defaultDatabase">Optional name of default database</param>
-        /// <param name="expiration">Optional time before a logged message will be expired assuming the expiration bundle is installed. <see cref="System.Threading.Timeout.InfiniteTimeSpan">Timeout.InfiniteTimeSpan</see> (-00:00:00.0010000) means no expiration. If this is not provided but errorExpiration is, errorExpiration will be used for non-errors too.</param>
-        /// <param name="errorExpiration">Optional time before a logged error message will be expired assuming the expiration bundle is installed. <see cref="System.Threading.Timeout.InfiniteTimeSpan">Timeout.InfiniteTimeSpan</see> (-00:00:00.0010000) means no expiration. If this is not provided but expiration is, expiration will be used for errors too.</param>
-        /// <param name="documentStoreFactory"></param>
-        public RavenDBSink(string connectionString, int batchPostingLimit, TimeSpan period, IFormatProvider formatProvider, string defaultDatabase = null, TimeSpan? expiration = null, TimeSpan? errorExpiration = null, Func<string, IDocumentStore> documentStoreFactory = null )
-            : base(batchPostingLimit, period)
-        {
-            var p = ConnectionStringParser<RavenConnectionStringOptions>.FromConnectionString(connectionString);
-            p.Parse();
-
-            _documentStore = documentStoreFactory != null
-                ? documentStoreFactory(connectionString)
-                : new DocumentStore { Urls = p.ConnectionStringOptions.Urls.ToArray(), Database = p.ConnectionStringOptions.Database }.Initialize();
-            _formatProvider = formatProvider;
-            _defaultDatabase = defaultDatabase;
-            _expiration = expiration;
-            _errorExpiration = errorExpiration ?? expiration;
-            _expiration = expiration ?? errorExpiration;
-            _disposeDocumentStore = true;
-        }
-
-        /// <summary>
         /// Emit a batch of log events, running asynchronously.
         /// </summary>
         /// <param name="events">The events to emit.</param>
