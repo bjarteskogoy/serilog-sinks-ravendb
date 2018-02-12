@@ -46,7 +46,7 @@ namespace Serilog.Sinks.RavenDB
         /// <summary>
         /// Constant for the name of the meta data field used for RavenDB expiration bundle
         /// </summary>
-        public const string RavenExpirationDate = "Raven-Expiration-Date";
+        public const string RavenExpirationDate = "@expires";
 
         /// <summary>
         /// A reasonable default time to wait between checking for event batches.
@@ -97,7 +97,7 @@ namespace Serilog.Sinks.RavenDB
                             if (_errorExpiration != Timeout.InfiniteTimeSpan)
                             {
                                 var metaData = session.Advanced.GetMetadataFor(logEventDoc);
-                                metaData[RavenExpirationDate] = DateTime.UtcNow.Add(_errorExpiration.Value);
+                                metaData[RavenExpirationDate] = DateTime.UtcNow.Add(_errorExpiration.Value).ToString("O");
                             }
                         }
                         else
@@ -105,7 +105,7 @@ namespace Serilog.Sinks.RavenDB
                             if (_expiration != Timeout.InfiniteTimeSpan)
                             {
                                 var metaData = session.Advanced.GetMetadataFor(logEventDoc);
-                                metaData[RavenExpirationDate] = DateTime.UtcNow.Add(_expiration.Value);
+                                metaData[RavenExpirationDate] = DateTime.UtcNow.Add(_expiration.Value).ToString("O");
                             }
                         }
                     }

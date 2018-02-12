@@ -3,22 +3,27 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using NUnit.Framework;
-using Raven.Client.Embedded;
+using Raven.TestDriver;
 using Serilog.Events;
 using Serilog.Parsing;
 using LogEvent = Serilog.Sinks.RavenDB.Data.LogEvent;
 
 namespace Serilog.Sinks.RavenDB.Tests
 {
+    public class RavenExecLocator : RavenServerLocator
+    {
+        public override string ServerPath { get { return @"h:\RavenDB4\Server\Raven.Server.exe"; } }
+    }
+
     [TestFixture]
-    public class RavenDBSinkTests
+    public class RavenDBSinkTests : RavenTestDriver<RavenExecLocator>
     {
         static readonly TimeSpan TinyWait = TimeSpan.FromMilliseconds(50);
         
         [Test]
         public void WhenAnEventIsWrittenToTheSinkItIsRetrievableFromTheDocumentStore()
         {
-            using (var documentStore = new EmbeddableDocumentStore {RunInMemory = true}.Initialize())
+            using (var documentStore = GetDocumentStore().Initialize())
             {
                 var timestamp = new DateTimeOffset(2013, 05, 28, 22, 10, 20, 666, TimeSpan.FromHours(10));
                 var exception = new ArgumentException("Mládek");
@@ -52,7 +57,7 @@ namespace Serilog.Sinks.RavenDB.Tests
         [Test]
         public void WnenAnEventIsWrittenWithExpirationItHasProperMetadata()
         {
-            using (var documentStore = new EmbeddableDocumentStore { RunInMemory = true }.Initialize())
+            using (var documentStore = GetDocumentStore().Initialize())
             {
                 var timestamp = new DateTimeOffset(2013, 05, 28, 22, 10, 20, 666, TimeSpan.FromHours(10));
                 var expiration = TimeSpan.FromDays(1);
@@ -83,7 +88,7 @@ namespace Serilog.Sinks.RavenDB.Tests
         [Test]
         public void WnenAnErrorEventIsWrittenWithExpirationItHasProperMetadata()
         {
-            using (var documentStore = new EmbeddableDocumentStore { RunInMemory = true }.Initialize())
+            using (var documentStore = GetDocumentStore().Initialize())
             {
                 var timestamp = new DateTimeOffset(2013, 05, 28, 22, 10, 20, 666, TimeSpan.FromHours(10));
                 var errorExpiration = TimeSpan.FromDays(1);
@@ -114,7 +119,7 @@ namespace Serilog.Sinks.RavenDB.Tests
         [Test]
         public void WhenAFatalEventIsWrittenWithExpirationItHasProperMetadata()
         {
-            using (var documentStore = new EmbeddableDocumentStore { RunInMemory = true }.Initialize())
+            using (var documentStore = GetDocumentStore().Initialize())
             {
                 var timestamp = new DateTimeOffset(2013, 05, 28, 22, 10, 20, 666, TimeSpan.FromHours(10));
                 var errorExpiration = TimeSpan.FromDays(1);
@@ -145,7 +150,7 @@ namespace Serilog.Sinks.RavenDB.Tests
         [Test]
         public void WhenNoErrorExpirationSetBuExpirationSetUseExpirationForErrors()
         {
-            using (var documentStore = new EmbeddableDocumentStore { RunInMemory = true }.Initialize())
+            using (var documentStore = GetDocumentStore().Initialize())
             {
                 var timestamp = new DateTimeOffset(2013, 05, 28, 22, 10, 20, 666, TimeSpan.FromHours(10));
                 var expiration = TimeSpan.FromMinutes(15);
@@ -175,7 +180,7 @@ namespace Serilog.Sinks.RavenDB.Tests
         [Test]
         public void WhenNoExpirationSetBuErrorExpirationSetUseErrorExpirationForMessages()
         {
-            using (var documentStore = new EmbeddableDocumentStore { RunInMemory = true }.Initialize())
+            using (var documentStore = GetDocumentStore().Initialize())
             {
                 var timestamp = new DateTimeOffset(2013, 05, 28, 22, 10, 20, 666, TimeSpan.FromHours(10));
                 var errorExpiration = TimeSpan.FromMinutes(15);
@@ -205,7 +210,7 @@ namespace Serilog.Sinks.RavenDB.Tests
         [Test]
         public void WhenNoExpirationIsProvidedMessagesDontExpire()
         {
-            using (var documentStore = new EmbeddableDocumentStore { RunInMemory = true }.Initialize())
+            using (var documentStore = GetDocumentStore().Initialize())
             {
                 var timestamp = new DateTimeOffset(2013, 05, 28, 22, 10, 20, 666, TimeSpan.FromHours(10));
                 var exception = new ArgumentException("Mládek");
@@ -231,7 +236,7 @@ namespace Serilog.Sinks.RavenDB.Tests
         [Test]
         public void WhenExpirationSetToInfiniteMessagesDontExpire()
         {
-            using (var documentStore = new EmbeddableDocumentStore { RunInMemory = true }.Initialize())
+            using (var documentStore = GetDocumentStore().Initialize())
             {
                 var timestamp = new DateTimeOffset(2013, 05, 28, 22, 10, 20, 666, TimeSpan.FromHours(10));
                 var expiration = Timeout.InfiniteTimeSpan;
@@ -259,7 +264,7 @@ namespace Serilog.Sinks.RavenDB.Tests
         [Test]
         public void WhenErrorExpirationSetToInfiniteErrorsDontExpire()
         {
-            using (var documentStore = new EmbeddableDocumentStore { RunInMemory = true }.Initialize())
+            using (var documentStore = GetDocumentStore().Initialize())
             {
                 var timestamp = new DateTimeOffset(2013, 05, 28, 22, 10, 20, 666, TimeSpan.FromHours(10));
                 var errorExpiration = Timeout.InfiniteTimeSpan;
@@ -282,36 +287,6 @@ namespace Serilog.Sinks.RavenDB.Tests
                     Assert.IsFalse(session.Advanced.GetMetadataFor(logEvent).ContainsKey(RavenDBSink.RavenExpirationDate), "No expiration set");
                 }
             }
-        }
-
-        [Test]
-        public void WhenUsingConnectionStringInCtorInternalDocumentStoreIsCreated()
-        {
-            var timestamp = new DateTimeOffset(2013, 05, 28, 22, 10, 20, 666, TimeSpan.FromHours(10));
-            var exception = new ArgumentException("Mládek");
-            const LogEventLevel level = LogEventLevel.Information;
-            const string messageTemplate = "{Song}++";
-            var properties = new List<LogEventProperty> { new LogEventProperty("Song", new ScalarValue("New Macabre")) };
-            var documentStoreTestListener = new DocumentStoreTestListener();
-
-            using (var ravenSink = new RavenDBSink("testConnectionRavenDb", 2, TinyWait, null,
-                    documentStoreFactory:
-                    s => new EmbeddableDocumentStore { ConnectionStringName = s, RunInMemory = true }.RegisterListener(documentStoreTestListener).Initialize()))
-            {
-                var template = new MessageTemplateParser().Parse(messageTemplate);
-                var logEvent = new Events.LogEvent(timestamp, level, exception, template, properties);
-                ravenSink.Emit(logEvent);
-            }
-
-            Assert.AreEqual(1, documentStoreTestListener.Events.Count);
-            var single = documentStoreTestListener.Events.First().Value;
-            Assert.AreEqual(messageTemplate, single.MessageTemplate);
-            Assert.AreEqual("\"New Macabre\"++", single.RenderedMessage);
-            Assert.AreEqual(timestamp, single.Timestamp);
-            Assert.AreEqual(level, single.Level);
-            Assert.AreEqual(1, single.Properties.Count);
-            Assert.AreEqual("New Macabre", single.Properties["Song"]);
-            Assert.AreEqual(exception.Message, single.Exception.Message);
         }
     }
 }
